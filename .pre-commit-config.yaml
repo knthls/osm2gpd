@@ -51,8 +51,6 @@ repos:
       - tests
     pass_filenames: false
     verbose: true
-    # 'types_or': [file,python,pyi]
-    # require_serial: true
 - hooks:
   - args:
     - --in-place
