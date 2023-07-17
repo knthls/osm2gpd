@@ -1,5 +1,7 @@
 from pathlib import Path
+
 import pytest
+
 from osm2gpd import parse
 
 
@@ -19,6 +21,6 @@ def malta(shared_datadir: Path) -> Path:
 
 
 @pytest.mark.parametrize("filename", ["andorra", "isle_of_man", "malta"])
-def test_parse(filename: str, request: pytest.FixtureRequest):
+def test_parse(filename: str, request: pytest.FixtureRequest) -> None:  # type: ignore[no-any-unimported]
     parse(request.getfixturevalue(filename))
-
+    return None
