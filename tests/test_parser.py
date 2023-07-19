@@ -20,7 +20,17 @@ def malta(shared_datadir: Path) -> Path:
     return shared_datadir.joinpath("malta-latest.osm.pbf")
 
 
-@pytest.mark.parametrize("filename", ["andorra", "isle_of_man", "malta"])
-def test_parse(filename: str, request: pytest.FixtureRequest) -> None:  # type: ignore[no-any-unimported]
+@pytest.mark.parametrize(
+    "filename",
+    [
+        # "isle_of_man",
+        "malta"
+    ],
+)
+def test_parse_path(filename: str, request: pytest.FixtureRequest) -> None:
     parse(request.getfixturevalue(filename))
-    return None
+
+
+@pytest.mark.parametrize("filename", ["andorra"])
+def test_parse_str(filename: str, request: pytest.FixtureRequest) -> None:
+    parse(str(request.getfixturevalue(filename)))

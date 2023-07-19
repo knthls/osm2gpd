@@ -23,6 +23,7 @@ pytest-datadir = "^1.4.1"
 ipdb = "^0.13.13"
 mypy-protobuf = "^3.4.0"
 mypy = "^1.4.1"
+flake8 = "^6.0.0"
 
 [build-system]
 requires = ["poetry-core"]
