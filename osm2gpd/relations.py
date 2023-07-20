@@ -116,6 +116,12 @@ def parse_generic_relation(
     return GeometryCollection(geoms)
 
 
+def get_tags(relation: Relation, string_table: list[str]) -> dict[str, str]:
+    return {
+        string_table[k]: string_table[v] for k, v in zip(relation.keys, relation.vals)
+    }
+
+
 def parse(
     group: PrimitiveGroup,
     string_table: list[str],
@@ -126,10 +132,7 @@ def parse(
     relations = {}
 
     for relation in group.relations:
-        rel_tags: dict[str, str] = {
-            string_table[k]: string_table[v]
-            for k, v in zip(relation.keys, relation.vals)
-        }
+        rel_tags: dict[str, str] = get_tags(relation, string_table)
 
         match rel_tags["type"]:
             case "multipolygon":
