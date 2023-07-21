@@ -132,18 +132,6 @@ def find_references(
         raise NotImplementedError()
 
 
-def infer_element_type(
-    element: RelationGroupContext | WayGroupContext,
-) -> Literal["relation", "way"]:
-    match element:
-        case RelationGroupContext():
-            return "relation"
-        case WayGroupContext():
-            return "way"
-        case _:
-            raise NotImplementedError()
-
-
 def filter_elements(
     elements: list[ContextType], tags: set[str], references: ReferenceDict | None = None
 ) -> tuple[list[ContextType], ReferenceDict]:
@@ -153,7 +141,7 @@ def filter_elements(
     keep: set[int] = set()
 
     try:
-        element_type = infer_element_type(elements[0])
+        element_type = elements[0].element_type
     except IndexError:
         return elements, references
 
