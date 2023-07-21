@@ -15,7 +15,7 @@ from shapely import (
 )
 from shapely.ops import linemerge
 
-from .proto import PrimitiveGroup, Relation
+from .proto import Node, PrimitiveGroup, Relation, Way
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +116,8 @@ def parse_generic_relation(
     return GeometryCollection(geoms)
 
 
-def get_tags(relation: Relation, string_table: list[str]) -> dict[str, str]:
-    return {
-        string_table[k]: string_table[v] for k, v in zip(relation.keys, relation.vals)
-    }
+def get_tags(obj: Relation | Way | Node, string_table: list[str]) -> dict[str, str]:
+    return {string_table[k]: string_table[v] for k, v in zip(obj.keys, obj.vals)}
 
 
 def parse(

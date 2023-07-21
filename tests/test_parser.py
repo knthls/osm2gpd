@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from osm2gpd.parse import OSMFile, filter_relations
+from osm2gpd.parse import OSMFile, filter_elements
 
 
 @pytest.fixture
@@ -69,8 +69,26 @@ def test_filter_relations(
     referenced by another relation."""
     osm = OSMFile.from_file(request.getfixturevalue(filename))
 
-    relations, references = filter_relations(osm.relations, tags)
+    relations, references = filter_elements(osm.relations, tags)
 
     for relation in relations:
         ids = relation.group.keys()
         assert len(set(ids) - references["relation"]) == 0
+
+
+@pytest.mark.parametrize(
+    "filename,tags",
+    [("isle_of_man", {"leisure"}), ("malta", {"amenity"})],
+)
+def test_filter_ways(
+    filename: str, tags: set[str], request: pytest.FixtureRequest
+) -> None:
+    """Make sure that only relations are kept, that either have a tag or are
+    referenced by another relation."""
+    osm = OSMFile.from_file(request.getfixturevalue(filename))
+
+    ways, references = filter_elements(osm.ways, tags)
+
+    for way in ways:
+        ids = way.group.keys()
+        assert len(set(ids) - references["ways"]) == 0

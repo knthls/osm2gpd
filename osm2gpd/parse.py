@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import singledispatch
 from itertools import accumulate
 from pathlib import Path
-from typing import Generator, Self, TypeAlias
+from typing import Generator, Literal, Self, TypeAlias, TypeVar
 
 from shapely import Polygon
 
@@ -16,13 +17,15 @@ from .context import (
     RelationGroupContext,
     WayGroupContext,
 )
-from .proto import HeaderBlock, PrimitiveBlock, Relation
-from .relations import get_tags as get_relation_tags
+from .proto import HeaderBlock, PrimitiveBlock, Relation, Way
+from .relations import get_tags
 
 __all__ = ["OSMFile"]
 
 BBox: TypeAlias = tuple[float, float, float, float] | Polygon
 ReferenceDict: TypeAlias = defaultdict[str, set[int]]
+
+ContextType = TypeVar("ContextType", RelationGroupContext, WayGroupContext)
 
 
 def _init_group_context(block: PrimitiveBlock) -> Generator[GroupContext, None, None]:
@@ -63,18 +66,29 @@ def _read_contexts(
             yield context
 
 
-def get_references_from_relation(relation: Relation) -> ReferenceDict:
+@singledispatch
+def get_references(element: Relation | Way) -> ReferenceDict:
+    raise NotImplementedError()
+
+
+@get_references.register(Relation)
+def _(element: Relation) -> ReferenceDict:
     references = defaultdict(set)
 
-    for id_, type_ in zip(accumulate(relation.memids), relation.types):
-        references[relation.MemberType.keys()[type_].lower()].add(id_)
+    for id_, type_ in zip(accumulate(element.memids), element.types):
+        references[element.MemberType.keys()[type_].lower()].add(id_)
 
     return references
 
 
-def get_references_from_context(
-    context: RelationGroupContext, ids: set[int]
-) -> ReferenceDict:
+@get_references.register(Way)
+def _(element: Way) -> ReferenceDict:
+    references = defaultdict(set)
+    references["node"] = set(accumulate(element.refs))
+    return references
+
+
+def get_references_from_context(context: ContextType, ids: set[int]) -> ReferenceDict:
     references = defaultdict(set)
     for idx in ids:
         try:
@@ -82,61 +96,92 @@ def get_references_from_context(
         except KeyError:
             continue
 
-        for k, v in get_references_from_relation(relation).items():
+        for k, v in get_references(relation).items():
             references[k].update(v)
 
     return references
 
 
-def find_relation_references(
-    keep: set[int], relations: list[RelationGroupContext]
+def find_references(
+    keep: set[int],
+    elements: list[ContextType],
+    element_type: Literal["way", "relation"],
 ) -> ReferenceDict:
     """Recursively find all relation ids, referenced by relation ids in the
     initial set `keep`."""
-    relation_references: defaultdict[str, set[int]] = defaultdict(set)
-    for relation_context in relations:
-        for k, v in get_references_from_context(relation_context, keep).items():
-            relation_references[k].update(v)
+    references: defaultdict[str, set[int]] = defaultdict(set)
+    for context in elements:
+        for k, v in get_references_from_context(context, keep).items():
+            references[k].update(v)
 
-    relation_references["relation"] -= keep
+    if element_type == "way":
+        return references
+    elif element_type == "relation":
+        # Recursively find all other references
+        references["relation"] -= keep
 
-    if len(relation_references["relation"]) > 0:
-        for k, v in find_relation_references(
-            keep.union(relation_references["relation"]), relations
-        ).items():
-            relation_references[k].update(v)
+        if len(references["relation"]) > 0:
+            for k, v in find_references(
+                keep.union(references["relation"]), elements, element_type
+            ).items():
+                references[k].update(v)
 
-    relation_references["relation"] = keep
-    return relation_references
+        references["relation"] = keep
+        return references
+    else:
+        raise NotImplementedError()
 
 
-def filter_relations(
-    relations: list[RelationGroupContext], tags: set[str]
-) -> tuple[list[RelationGroupContext], ReferenceDict]:
-    relation_references = defaultdict(set)
-    keep = set()
-    for relation_context in relations:
-        _keep = {
-            relation.id
-            for relation in relation_context.group.values()
-            if len(
-                tags.intersection(
-                    get_relation_tags(relation, relation_context.string_table)
-                )
-            )
-            > 0
-        }
+def infer_element_type(
+    element: RelationGroupContext | WayGroupContext,
+) -> Literal["relation", "way"]:
+    match element:
+        case RelationGroupContext():
+            return "relation"
+        case WayGroupContext():
+            return "way"
+        case _:
+            raise NotImplementedError()
 
-        keep.update(_keep)
 
-    for k, v in find_relation_references(keep, relations).items():
-        relation_references[k].update(v)
+def filter_elements(
+    elements: list[ContextType], tags: set[str], references: ReferenceDict | None = None
+) -> tuple[list[ContextType], ReferenceDict]:
+    if references is None:
+        references = defaultdict(set)
 
-    for relation_context in relations:
-        for key in set(relation_context.group.keys()) - relation_references["relation"]:
-            relation_context.group.pop(key, None)
+    keep: set[int] = set()
 
-    return relations, relation_references
+    try:
+        element_type = infer_element_type(elements[0])
+    except IndexError:
+        return elements, references
+
+    for element_context in elements:
+        keep.update(
+            {
+                way.id
+                for way in element_context.group.values()
+                if len(tags.intersection(get_tags(way, element_context.string_table)))
+                > 0
+            }
+        )
+
+    match element_type:
+        case "relation":
+            for k, v in find_references(keep, elements, element_type).items():
+                references[k].update(v)
+        case "way":
+            for k, v in find_references(keep, elements, element_type).items():
+                references[k].update(v)
+        case _:
+            raise NotImplementedError()
+
+    for element_context in elements:
+        for key in set(element_context.group.keys()) - references[element_type]:
+            element_context.group.pop(key, None)
+
+    return elements, references
 
 
 @dataclass
@@ -174,8 +219,9 @@ class OSMFile:
         return cls(nodes, ways, relations)
 
     def filter(self, *, tags: set[str]) -> None:
-        self.relations, references = filter_relations(self.relations, tags)
-        del references["relation"]
+        self.relations, references = filter_elements(self.relations, tags)
+        self.ways, references = filter_elements(self.ways, tags, references=references)
+        # self.nodes, _ = filter_elements(self.nodes, tags, references=references)
 
 
 #  header_bbox = box(
