@@ -15,7 +15,9 @@ from shapely import (
 )
 from shapely.ops import linemerge
 
-from .proto import Node, PrimitiveGroup, Relation, Way
+from .proto import PrimitiveGroup, Relation
+from .tags import get_tags
+from .unpacked import RelationGroup
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +118,6 @@ def parse_generic_relation(
     return GeometryCollection(geoms)
 
 
-def get_tags(obj: Relation | Way | Node, string_table: list[str]) -> dict[str, str]:
-    return {string_table[k]: string_table[v] for k, v in zip(obj.keys, obj.vals)}
-
-
 def parse(
     group: PrimitiveGroup,
     string_table: list[str],
@@ -169,4 +167,46 @@ def resolve_buffer(
 ) -> gpd.GeoDataFrame:
     return pd.concat(
         (relations(nodes=nodes, ways=ways) for relations in relation_buffer)
+    )
+
+
+def unpack_relation_group(
+    group: PrimitiveGroup, string_table: list[str]
+) -> RelationGroup:
+    ids: list[int] = []
+    versions: list[int] = []
+    member_ids: list[list[int]] = []
+    member_types: list[list[str]] = []
+    member_roles: list[list[str]] = []
+    tags: dict[int, dict[str, str]] = {}
+    visible: list[bool] = []
+    changeset: list[int] = []
+
+    for i, relation in enumerate(group.relations):
+        ids.append(relation.id)
+
+        member_types.append(
+            [relation.MemberType.keys()[type_].lower() for type_ in relation.types]
+        )
+        member_ids.append(list(accumulate(relation.memids)))
+        member_roles.append([string_table[sid] for sid in relation.roles_sid])
+
+        _tags = get_tags(relation, string_table)
+        if len(_tags) > 0:
+            tags[i] = _tags
+
+        # fixme: add optional here
+        versions.append(relation.info.version)
+        visible.append(relation.info.visible)
+        changeset.append(relation.info.changeset)
+
+    return RelationGroup(
+        ids=ids,
+        tags=tags,
+        version=versions,
+        changeset=changeset,
+        visible=visible,
+        member_ids=member_ids,
+        member_roles=member_roles,
+        member_types=member_types,
     )

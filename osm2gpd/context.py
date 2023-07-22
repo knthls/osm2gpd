@@ -1,7 +1,7 @@
 """These classes are used to store the context information necessary to resolve
 a PrimitiveGroup into a DataFrame."""
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import ClassVar, TypeVar
 
 from .proto import DenseNodes, Node, PrimitiveBlock, Relation, Way
 
@@ -37,3 +37,8 @@ class WayGroupContext(GroupContext):
 class RelationGroupContext(GroupContext):
     element_type: ClassVar[str] = "relation"
     group: dict[int, Relation]
+
+
+ContextType = TypeVar(
+    "ContextType", RelationGroupContext, WayGroupContext, DenseGroupContext
+)
