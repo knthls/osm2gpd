@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from osm2gpd.parse import OSMFile, filter_elements
+from osm2gpd.parse import OSMFile
 
 
 @pytest.fixture
@@ -56,39 +56,3 @@ def test_osm_file_object_can_be_filtered_by_tags(
     assert len(osm.nodes) > 0
     assert len(osm.relations) > 0
     assert len(osm.ways) > 0
-
-
-@pytest.mark.parametrize(
-    "filename,tags",
-    [("isle_of_man", {"type"}), ("malta", {"boundary"})],
-)
-def test_filter_relations(
-    filename: str, tags: set[str], request: pytest.FixtureRequest
-) -> None:
-    """Make sure that only relations are kept, that either have a tag or are
-    referenced by another relation."""
-    osm = OSMFile.from_file(request.getfixturevalue(filename))
-
-    relations, references = filter_elements(osm.relations, tags)
-
-    for relation in relations:
-        ids = relation.group.keys()
-        assert len(set(ids) - references["relation"]) == 0
-
-
-@pytest.mark.parametrize(
-    "filename,tags",
-    [("isle_of_man", {"leisure"}), ("malta", {"amenity"})],
-)
-def test_filter_ways(
-    filename: str, tags: set[str], request: pytest.FixtureRequest
-) -> None:
-    """Make sure that only relations are kept, that either have a tag or are
-    referenced by another relation."""
-    osm = OSMFile.from_file(request.getfixturevalue(filename))
-
-    ways, references = filter_elements(osm.ways, tags)
-
-    for way in ways:
-        ids = way.group.keys()
-        assert len(set(ids) - references["ways"]) == 0

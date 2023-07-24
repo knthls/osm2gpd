@@ -5,65 +5,52 @@ from dataclasses import dataclass, field
 from functools import singledispatch
 from itertools import accumulate
 from pathlib import Path
-from typing import Generator, Literal, Self, TypeAlias, TypeVar
+from typing import Generator, Literal, Self, TypeAlias
 
 from shapely import Polygon
 
 from .blocks import read_blocks
-from .context import (
-    DenseGroupContext,
-    GroupContext,
-    NodeGroupContext,
-    RelationGroupContext,
-    WayGroupContext,
-)
+from .context import ContextType, NodeGroupContext
+from .nodes import unpack_dense_group
 from .proto import HeaderBlock, PrimitiveBlock, Relation, Way
-from .relations import get_tags
+from .relations import unpack_relation_group
+from .unpacked import BaseGroup, NodesGroup, RelationGroup, WayGroup
+from .ways import unpack_way_group
 
 __all__ = ["OSMFile"]
 
 BBox: TypeAlias = tuple[float, float, float, float] | Polygon
 ReferenceDict: TypeAlias = defaultdict[str, set[int]]
 
-ContextType = TypeVar("ContextType", RelationGroupContext, WayGroupContext)
 
-
-def _init_group_context(block: PrimitiveBlock) -> Generator[GroupContext, None, None]:
-    str_tab: list[str] = [x.decode("utf-8") for x in block.stringtable.s]
+def _unpack_primitive_block(
+    block: PrimitiveBlock,
+) -> Generator[BaseGroup, None, None]:
+    string_table: list[str] = [x.decode("utf-8") for x in block.stringtable.s]
 
     for group in block.primitivegroup:
         # each group contains only one field at a time, where the fields can be
         # nodes, dense, ways, relations or changesets
 
         if len(group.nodes) > 0:
-            yield NodeGroupContext(
-                group={node.id: node for node in group.nodes}, string_table=str_tab
-            )
+            raise NotImplementedError()
 
         if len(group.dense.id) > 0:
-            yield DenseGroupContext(
-                block=block, group=group.dense, string_table=str_tab
-            )
+            yield unpack_dense_group(block, group, string_table)
 
         if len(group.ways) > 0:
-            yield WayGroupContext(
-                group={way.id: way for way in group.ways}, string_table=str_tab
-            )
+            yield unpack_way_group(group, string_table)
 
         if len(group.relations) > 0:
-            yield RelationGroupContext(
-                group={relation.id: relation for relation in group.relations},
-                string_table=str_tab,
-            )
+            yield unpack_relation_group(group, string_table)
 
 
-def _read_contexts(
+def _read_and_unpacked_groups(
     file_iterator: Generator[bytes, None, None],
-) -> Generator[GroupContext, None, None]:
+) -> Generator[BaseGroup, None, None]:
     """Parse all nodes from a file-iterator."""
     for block in file_iterator:
-        for context in _init_group_context(PrimitiveBlock.FromString(block)):
-            yield context
+        yield from _unpack_primitive_block(PrimitiveBlock.FromString(block))
 
 
 @singledispatch
@@ -89,17 +76,18 @@ def _(element: Way) -> ReferenceDict:
 
 
 def get_references_from_context(context: ContextType, ids: set[int]) -> ReferenceDict:
-    references = defaultdict(set)
-    for idx in ids:
-        try:
-            relation = context.group[idx]
-        except KeyError:
-            continue
-
-        for k, v in get_references(relation).items():
-            references[k].update(v)
-
-    return references
+    raise NotImplementedError()
+    #  references = defaultdict(set)
+    #  for idx in ids:
+    #      try:
+    #          relation = context.group[idx]
+    #      except KeyError:
+    #          continue
+    #
+    #      for k, v in get_references(relation).items():
+    #          references[k].update(v)
+    #
+    #  return references
 
 
 def find_references(
@@ -132,60 +120,20 @@ def find_references(
         raise NotImplementedError()
 
 
-def filter_elements(
-    elements: list[ContextType], tags: set[str], references: ReferenceDict | None = None
-) -> tuple[list[ContextType], ReferenceDict]:
-    if references is None:
-        references = defaultdict(set)
-
-    keep: set[int] = set()
-
-    try:
-        element_type = elements[0].element_type
-    except IndexError:
-        return elements, references
-
-    for element_context in elements:
-        keep.update(
-            {
-                way.id
-                for way in element_context.group.values()
-                if len(tags.intersection(get_tags(way, element_context.string_table)))
-                > 0
-            }
-        )
-
-    match element_type:
-        case "relation":
-            for k, v in find_references(keep, elements, element_type).items():
-                references[k].update(v)
-        case "way":
-            for k, v in find_references(keep, elements, element_type).items():
-                references[k].update(v)
-        case _:
-            raise NotImplementedError()
-
-    for element_context in elements:
-        for key in set(element_context.group.keys()) - references[element_type]:
-            element_context.group.pop(key, None)
-
-    return elements, references
-
-
 @dataclass
 class OSMFile:
-    nodes: list[DenseGroupContext] = field(default_factory=list)
-    ways: list[WayGroupContext] = field(default_factory=list)
-    relations: list[RelationGroupContext] = field(default_factory=list)
+    nodes: list[NodesGroup] = field(default_factory=list)
+    ways: list[WayGroup] = field(default_factory=list)
+    relations: list[RelationGroup] = field(default_factory=list)
 
     @classmethod
     def from_file(cls, fp: Path | str) -> Self:
         if isinstance(fp, str):
             fp = Path(fp)
 
-        nodes: list[DenseGroupContext] = []
-        ways: list[WayGroupContext] = []
-        relations: list[RelationGroupContext] = []
+        nodes: list[NodesGroup] = []
+        ways: list[WayGroup] = []
+        relations: list[RelationGroup] = []
 
         with open(fp, "rb") as f:
             file_iterator = read_blocks(f)
@@ -193,23 +141,21 @@ class OSMFile:
             # fixme: do something with header block here
             _: HeaderBlock = HeaderBlock.FromString(next(file_iterator))
 
-            for context in _read_contexts(file_iterator):
-                match context:
+            for group in _read_and_unpacked_groups(file_iterator):
+                match group:
                     case NodeGroupContext():
                         raise NotImplementedError()
-                    case DenseGroupContext():
-                        nodes.append(context)
-                    case WayGroupContext():
-                        ways.append(context)
-                    case RelationGroupContext():
-                        relations.append(context)
+                    case NodesGroup():
+                        nodes.append(group)
+                    case WayGroup():
+                        ways.append(group)
+                    case RelationGroup():
+                        relations.append(group)
 
         return cls(nodes, ways, relations)
 
     def filter(self, *, tags: set[str]) -> None:
-        self.relations, references = filter_elements(self.relations, tags)
-        self.ways, references = filter_elements(self.ways, tags, references=references)
-        # self.nodes, _ = filter_elements(self.nodes, tags, references=references)
+        raise NotImplementedError()
 
 
 #  header_bbox = box(
