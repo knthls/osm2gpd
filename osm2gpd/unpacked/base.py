@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+__all__ = ["BaseGroup"]
+
 
 @dataclass(repr=False)
 class BaseGroup:
