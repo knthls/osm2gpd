@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from itertools import accumulate
 from typing import Generator, Iterator, Self, Sequence
 
+import numpy as np
+from numpy.typing import NDArray
+
 from osm2gpd.proto import PrimitiveGroup
 
 from .base import BaseGroup
@@ -11,8 +14,8 @@ __all__ = ["NodesGroup"]
 
 @dataclass(repr=False)
 class NodesGroup(BaseGroup):
-    lat: list[float]
-    lon: list[float]
+    lat: NDArray[np.float64]
+    lon: NDArray[np.float64]
 
     @classmethod
     def from_dense_group(
@@ -25,15 +28,21 @@ class NodesGroup(BaseGroup):
         lon_offset: float,
     ) -> Self:
         return cls(
-            ids=list(accumulate(group.dense.id)),
-            lat=[
-                (x * granularity + lat_offset) * 1e-9
-                for x in accumulate(group.dense.lat)
-            ],
-            lon=[
-                (x * granularity + lon_offset) * 1e-9
-                for x in accumulate(group.dense.lon)
-            ],
+            ids=np.fromiter(accumulate(group.dense.id), dtype=np.int64),
+            lat=np.fromiter(
+                (
+                    (x * granularity + lat_offset) * 1e-9
+                    for x in accumulate(group.dense.lat)
+                ),
+                dtype=np.float64,
+            ),
+            lon=np.fromiter(
+                (
+                    (x * granularity + lon_offset) * 1e-9
+                    for x in accumulate(group.dense.lon)
+                ),
+                dtype=np.float64,
+            ),
             tags=dict(_parse_dense_tags(group.dense.keys_vals, string_table)),
             version=list(group.dense.denseinfo.version),
             visible=list(_visible(group.dense.denseinfo.visible, len(group.dense.id))),

@@ -1,12 +1,5 @@
-from itertools import accumulate
 from typing import Generator, Sequence
 
-from .context import (
-    ContextType,
-    DenseGroupContext,
-    RelationGroupContext,
-    WayGroupContext,
-)
 from .proto import Node, Relation, Way
 
 
@@ -35,26 +28,3 @@ def parse_dense_tags(
 
         kv_idx += 1
         node_idx += 1
-
-
-def get_elements_matching_tags(context: ContextType, tags: set[str]) -> set[int]:
-    """Return a set of osm ids that matches the given tags."""
-    match context:
-        case DenseGroupContext():
-            # resolve delta coding
-            ids = list(accumulate(context.group.id))
-            return {
-                ids[idx]
-                for idx, element_tags in parse_dense_tags(
-                    context.group.keys_vals, context.string_table
-                )
-                if len(tags.intersection(element_tags.keys())) > 0
-            }
-        case WayGroupContext() | RelationGroupContext():
-            return {
-                element.id
-                for element in context.group.values()
-                if len(tags.intersection(get_tags(element, context.string_table))) > 0
-            }
-        case _:
-            raise NotImplementedError()

@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from itertools import accumulate
 from typing import Self
 
+import numpy as np
+from numpy.typing import NDArray
+
 from osm2gpd.proto import PrimitiveGroup
 from osm2gpd.tags import get_tags
 
@@ -12,9 +15,9 @@ __all__ = ["RelationGroup"]
 
 @dataclass(repr=False)
 class RelationGroup(BaseGroup):
-    member_types: list[list[str]]
-    member_roles: list[list[str]]
-    member_ids: list[list[int]]
+    member_types: list[NDArray[np.object_]]
+    member_roles: list[NDArray[np.object_]]
+    member_ids: list[NDArray[np.int64]]
 
     @classmethod
     def from_primitive_group(
@@ -22,9 +25,9 @@ class RelationGroup(BaseGroup):
     ) -> Self:
         ids: list[int] = []
         versions: list[int] = []
-        member_ids: list[list[int]] = []
-        member_types: list[list[str]] = []
-        member_roles: list[list[str]] = []
+        member_ids: list[NDArray[np.int64]] = []
+        member_types: list[NDArray[np.object_]] = []
+        member_roles: list[NDArray[np.object_]] = []
         tags: dict[int, dict[str, str]] = {}
         visible: list[bool] = []
         changeset: list[int] = []
@@ -33,10 +36,20 @@ class RelationGroup(BaseGroup):
             ids.append(relation.id)
 
             member_types.append(
-                [relation.MemberType.keys()[type_].lower() for type_ in relation.types]
+                np.fromiter(
+                    (
+                        relation.MemberType.keys()[type_].lower()
+                        for type_ in relation.types
+                    ),
+                    dtype=np.object_,
+                )
             )
-            member_ids.append(list(accumulate(relation.memids)))
-            member_roles.append([string_table[sid] for sid in relation.roles_sid])
+            member_ids.append(np.fromiter(accumulate(relation.memids), dtype=np.int64))
+            member_roles.append(
+                np.fromiter(
+                    (string_table[sid] for sid in relation.roles_sid), dtype=np.object_
+                )
+            )
 
             _tags = get_tags(relation, string_table)
             if len(_tags) > 0:
@@ -48,7 +61,7 @@ class RelationGroup(BaseGroup):
             changeset.append(relation.info.changeset)
 
         return cls(
-            ids=ids,
+            ids=np.array(ids),
             tags=tags,
             version=versions,
             changeset=changeset,

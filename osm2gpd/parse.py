@@ -2,16 +2,14 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
-from functools import singledispatch
-from itertools import accumulate
 from pathlib import Path
-from typing import Generator, Literal, Self, TypeAlias
+from typing import Generator, Self, TypeAlias
 
 from shapely import Polygon
 
 from .blocks import read_blocks
-from .context import ContextType, NodeGroupContext
-from .proto import HeaderBlock, PrimitiveBlock, Relation, Way
+from .filter import filter_groups
+from .proto import HeaderBlock, PrimitiveBlock
 from .unpacked import BaseGroup, NodesGroup, RelationGroup, WayGroup
 
 __all__ = ["OSMFile"]
@@ -56,73 +54,6 @@ def _read_and_unpack_groups(
         yield from _unpack_primitive_block(PrimitiveBlock.FromString(block))
 
 
-@singledispatch
-def get_references(element: Relation | Way) -> ReferenceDict:
-    raise NotImplementedError()
-
-
-@get_references.register(Relation)
-def _(element: Relation) -> ReferenceDict:
-    references = defaultdict(set)
-
-    for id_, type_ in zip(accumulate(element.memids), element.types):
-        references[element.MemberType.keys()[type_].lower()].add(id_)
-
-    return references
-
-
-@get_references.register(Way)
-def _(element: Way) -> ReferenceDict:
-    references = defaultdict(set)
-    references["node"] = set(accumulate(element.refs))
-    return references
-
-
-def get_references_from_context(context: ContextType, ids: set[int]) -> ReferenceDict:
-    raise NotImplementedError()
-    #  references = defaultdict(set)
-    #  for idx in ids:
-    #      try:
-    #          relation = context.group[idx]
-    #      except KeyError:
-    #          continue
-    #
-    #      for k, v in get_references(relation).items():
-    #          references[k].update(v)
-    #
-    #  return references
-
-
-def find_references(
-    keep: set[int],
-    elements: list[ContextType],
-    element_type: Literal["way", "relation"],
-) -> ReferenceDict:
-    """Recursively find all relation ids, referenced by relation ids in the
-    initial set `keep`."""
-    references: defaultdict[str, set[int]] = defaultdict(set)
-    for context in elements:
-        for k, v in get_references_from_context(context, keep).items():
-            references[k].update(v)
-
-    if element_type == "way":
-        return references
-    elif element_type == "relation":
-        # Recursively find all other references
-        references["relation"] -= keep
-
-        if len(references["relation"]) > 0:
-            for k, v in find_references(
-                keep.union(references["relation"]), elements, element_type
-            ).items():
-                references[k].update(v)
-
-        references["relation"] = keep
-        return references
-    else:
-        raise NotImplementedError()
-
-
 @dataclass
 class OSMFile:
     nodes: list[NodesGroup] = field(default_factory=list)
@@ -146,8 +77,6 @@ class OSMFile:
 
             for group in _read_and_unpack_groups(file_iterator):
                 match group:
-                    case NodeGroupContext():
-                        raise NotImplementedError()
                     case NodesGroup():
                         nodes.append(group)
                     case WayGroup():
@@ -158,7 +87,13 @@ class OSMFile:
         return cls(nodes, ways, relations)
 
     def filter(self, *, tags: set[str]) -> None:
-        raise NotImplementedError()
+        self.relations, references = filter_groups(self.relations, tags=tags)
+        self.ways, references = filter_groups(
+            self.ways, tags=tags, references=references
+        )
+        self.nodes, references = filter_groups(
+            self.nodes, tags=tags, references=references
+        )
 
 
 #  header_bbox = box(
