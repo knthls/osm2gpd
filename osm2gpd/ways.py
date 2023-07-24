@@ -7,8 +7,6 @@ import pandas as pd
 from shapely import LinearRing, LineString, Polygon
 
 from .proto import PrimitiveGroup
-from .tags import get_tags
-from .unpacked import WayGroup
 
 __all__ = ["resolve_buffer", "parse"]
 
@@ -71,33 +69,3 @@ def resolve_buffer(
 ) -> gpd.GeoDataFrame:
     # resolve partial calls to _parse_ways with all nodes now known
     return pd.concat((ways(nodes=nodes) for ways in way_buffer))
-
-
-def unpack_way_group(group: PrimitiveGroup, string_table: list[str]) -> WayGroup:
-    ids: list[int] = []
-    versions: list[int] = []
-    member_ids: list[list[int]] = []
-    tags: dict[int, dict[str, str]] = {}
-    visible: list[bool] = []
-    changeset: list[int] = []
-
-    for i, way in enumerate(group.ways):
-        member_ids.append(list(accumulate(way.refs)))
-        _tags = get_tags(way, string_table)
-        if len(_tags) > 0:
-            tags[i] = _tags
-
-        ids.append(way.id)
-        # fixme: add optional here
-        versions.append(way.info.version)
-        visible.append(way.info.visible)
-        changeset.append(way.info.changeset)
-
-    return WayGroup(
-        ids=ids,
-        tags=tags,
-        member_ids=member_ids,
-        version=versions,
-        changeset=changeset,
-        visible=visible,
-    )

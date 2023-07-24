@@ -6,7 +6,6 @@ import pandas as pd
 
 from .proto import PrimitiveBlock, PrimitiveGroup
 from .tags import parse_dense_tags
-from .unpacked import NodesGroup
 
 
 def _visible(values: Sequence[bool], length: int) -> Iterator[bool]:
@@ -53,23 +52,3 @@ def _parse_dense_group(
     )
 
     return nodes.join(tags).set_index("id")
-
-
-def unpack_dense_group(
-    block: PrimitiveBlock, group: PrimitiveGroup, string_table: list[str]
-) -> NodesGroup:
-    return NodesGroup(
-        ids=list(accumulate(group.dense.id)),
-        lat=[
-            (x * block.granularity + block.lat_offset) * 1e-9
-            for x in accumulate(group.dense.lat)
-        ],
-        lon=[
-            (x * block.granularity + block.lon_offset) * 1e-9
-            for x in accumulate(group.dense.lon)
-        ],
-        tags=dict(parse_dense_tags(group.dense.keys_vals, string_table)),
-        version=list(group.dense.denseinfo.version),
-        visible=list(_visible(group.dense.denseinfo.visible, len(group.dense.id))),
-        changeset=list(accumulate(group.dense.denseinfo.changeset)),
-    )

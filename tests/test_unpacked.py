@@ -4,10 +4,8 @@ from typing import Generator
 import pytest
 
 from osm2gpd.blocks import read_blocks
-from osm2gpd.nodes import unpack_dense_group
 from osm2gpd.proto import PrimitiveBlock, PrimitiveGroup
-from osm2gpd.relations import unpack_relation_group
-from osm2gpd.ways import unpack_way_group
+from osm2gpd.unpacked import NodesGroup, RelationGroup, WayGroup
 
 
 def _iter_blocks(fp: Path) -> Generator[PrimitiveBlock, None, None]:
@@ -24,12 +22,18 @@ def _iter_blocks(fp: Path) -> Generator[PrimitiveBlock, None, None]:
 @pytest.fixture
 def dense_group_context(
     shared_datadir: Path,
-) -> tuple[PrimitiveBlock, PrimitiveGroup, list[str]]:
+) -> tuple[PrimitiveGroup, list[str], float, float, float]:
     for block in _iter_blocks(shared_datadir.joinpath("andorra-latest.osm.pbf")):
         for group in block.primitivegroup:
             if len(group.dense.id) > 0:
                 str_tab: list[str] = [x.decode("utf-8") for x in block.stringtable.s]
-                return block, group, str_tab
+                return (
+                    group,
+                    str_tab,
+                    block.granularity,
+                    block.lat_offset,
+                    block.lon_offset,
+                )
 
     raise Exception("Failed to find dense group in file")
 
@@ -61,9 +65,16 @@ def relation_group_context(
 
 
 def test_unpack_dense_group(
-    dense_group_context: tuple[PrimitiveBlock, PrimitiveGroup, list[str]]
+    dense_group_context: tuple[PrimitiveGroup, list[str], float, float, float]
 ) -> None:
-    result = unpack_dense_group(*dense_group_context)
+    group, string_table, granularity, lat_offset, lon_offset = dense_group_context
+    result = NodesGroup.from_dense_group(
+        group,
+        string_table,
+        lon_offset=lon_offset,
+        lat_offset=lat_offset,
+        granularity=granularity,
+    )
 
     n_items = len(result.ids)
 
@@ -77,7 +88,7 @@ def test_unpack_dense_group(
 
 
 def test_unpack_way_group(way_group_context: tuple[PrimitiveGroup, list[str]]) -> None:
-    result = unpack_way_group(*way_group_context)
+    result = WayGroup.from_primitive_group(*way_group_context)
 
     n_items = len(result.ids)
 
@@ -91,7 +102,7 @@ def test_unpack_way_group(way_group_context: tuple[PrimitiveGroup, list[str]]) -
 def test_unpack_relations_group(
     relation_group_context: tuple[PrimitiveGroup, list[str]]
 ) -> None:
-    result = unpack_relation_group(*relation_group_context)
+    result = RelationGroup.from_primitive_group(*relation_group_context)
 
     n_items = len(result.ids)
 

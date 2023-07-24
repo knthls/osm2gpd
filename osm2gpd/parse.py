@@ -11,11 +11,8 @@ from shapely import Polygon
 
 from .blocks import read_blocks
 from .context import ContextType, NodeGroupContext
-from .nodes import unpack_dense_group
 from .proto import HeaderBlock, PrimitiveBlock, Relation, Way
-from .relations import unpack_relation_group
 from .unpacked import BaseGroup, NodesGroup, RelationGroup, WayGroup
-from .ways import unpack_way_group
 
 __all__ = ["OSMFile"]
 
@@ -36,16 +33,22 @@ def _unpack_primitive_block(
             raise NotImplementedError()
 
         if len(group.dense.id) > 0:
-            yield unpack_dense_group(block, group, string_table)
+            yield NodesGroup.from_dense_group(
+                group,
+                string_table,
+                granularity=block.granularity,
+                lat_offset=block.lat_offset,
+                lon_offset=block.lon_offset,
+            )
 
         if len(group.ways) > 0:
-            yield unpack_way_group(group, string_table)
+            yield WayGroup.from_primitive_group(group, string_table)
 
         if len(group.relations) > 0:
-            yield unpack_relation_group(group, string_table)
+            yield RelationGroup.from_primitive_group(group, string_table)
 
 
-def _read_and_unpacked_groups(
+def _read_and_unpack_groups(
     file_iterator: Generator[bytes, None, None],
 ) -> Generator[BaseGroup, None, None]:
     """Parse all nodes from a file-iterator."""
@@ -141,7 +144,7 @@ class OSMFile:
             # fixme: do something with header block here
             _: HeaderBlock = HeaderBlock.FromString(next(file_iterator))
 
-            for group in _read_and_unpacked_groups(file_iterator):
+            for group in _read_and_unpack_groups(file_iterator):
                 match group:
                     case NodeGroupContext():
                         raise NotImplementedError()
