@@ -79,9 +79,8 @@ def filter_groups(
             case NodesGroup():
                 keep = np.where(
                     np.isin(group.ids, matching_ids)
-                    | np.isin(group.ids, references.get("nodes", []))
+                    | np.isin(group.ids, references.get("node", []))
                 )[0]
-
                 group.ids = group.ids[keep]
                 group.version = [group.version[idx] for idx in keep]
                 group.tags = {i: group.tags.get(idx, {}) for i, idx in enumerate(keep)}
