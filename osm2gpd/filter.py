@@ -38,9 +38,16 @@ def filter_groups(
     )
 
     match groups[0]:
-        case RelationGroup() | WayGroup():
+        case RelationGroup():
             for k, v in find_references(
-                matching_ids, groups  # type: ignore[type-var]
+                np.concatenate([matching_ids, references.get("relation", np.array([], dtype=np.int64))]), groups  # type: ignore[type-var]
+            ).items():
+                references[k] = np.unique(
+                    np.concatenate([references.get(k, np.array([], dtype=np.int64)), v])
+                )
+        case WayGroup():
+            for k, v in find_references(
+                np.concatenate([matching_ids, references.get("way", np.array([], dtype=np.int64))]), groups  # type: ignore[type-var]
             ).items():
                 references[k] = np.unique(
                     np.concatenate([references.get(k, np.array([], dtype=np.int64)), v])

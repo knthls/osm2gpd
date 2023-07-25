@@ -176,3 +176,23 @@ def test_filtering_respects_references(
     assert np.isin(
         way_references["node"], node_references["node"]
     ).all(), "node references have disappeared during node filtering"
+
+
+@pytest.mark.parametrize(
+    "filename,tags",
+    [("isle_of_man", {"name"})],
+)
+def test_way_members_are_in_references(
+    filename: str, tags: set[str], request: pytest.FixtureRequest
+) -> None:
+    osm = OSMFile.from_file(request.getfixturevalue(filename))
+    osm.relations, relation_references = filter_groups(osm.relations, tags)
+
+    osm.ways, references = filter_groups(
+        osm.ways, tags, references=relation_references.copy()
+    )
+
+    assert np.isin(
+        np.unique(np.concatenate([np.concatenate(way.member_ids) for way in osm.ways])),
+        references["node"],
+    ).all()
