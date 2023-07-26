@@ -100,15 +100,36 @@ class OSMFile:
         return self
 
     def consolidate(self) -> gpd.GeoDataFrame:
-        nodes = pd.concat((consolidate_nodes(nodes) for nodes in self.nodes))
-        ways = pd.concat((consolidate_ways(ways, nodes=nodes) for ways in self.ways))
-        relations = pd.concat(
-            (
-                consolidate_relations(relations, ways=ways, nodes=nodes)
-                for relations in self.relations
-            )
-        )
-        return pd.concat([nodes, ways, relations])
+        _node_parts = [
+            consolidate_nodes(nodes) for nodes in self.nodes if len(nodes.ids) > 0
+        ]
+        if len(_node_parts) > 0:
+            nodes = pd.concat(_node_parts)
+        else:
+            raise ValueError("Nothing to consolidate.")
+
+        _way_parts = [
+            consolidate_ways(ways, nodes=nodes)
+            for ways in self.ways
+            if len(ways.ids) > 0
+        ]
+
+        if len(_way_parts) > 0:
+            ways = pd.concat(_way_parts)
+        else:
+            ways = gpd.GeoDataFrame()
+
+        _relation_parts = [
+            consolidate_relations(relations, ways=ways, nodes=nodes)
+            for relations in self.relations
+            if len(relations.ids) > 0
+        ]
+
+        if len(_relation_parts) > 0:
+            relations = pd.concat(_relation_parts)
+            return pd.concat([nodes, ways, relations])
+        else:
+            return pd.concat([nodes, ways])
 
 
 #  header_bbox = box(
