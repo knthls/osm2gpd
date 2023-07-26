@@ -13,6 +13,7 @@ from .blocks import read_blocks
 from .filter import filter_groups
 from .nodes import consolidate_nodes
 from .proto import HeaderBlock, PrimitiveBlock
+from .relations import consolidate_relations
 from .unpacked import BaseGroup, NodesGroup, RelationGroup, WayGroup
 from .ways import consolidate_ways
 
@@ -100,8 +101,14 @@ class OSMFile:
 
     def consolidate(self) -> gpd.GeoDataFrame:
         nodes = pd.concat((consolidate_nodes(nodes) for nodes in self.nodes))
-        _ = pd.concat((consolidate_ways(ways, nodes=nodes) for ways in self.ways))
-        raise NotImplementedError()
+        ways = pd.concat((consolidate_ways(ways, nodes=nodes) for ways in self.ways))
+        relations = pd.concat(
+            (
+                consolidate_relations(relations, ways=ways, nodes=nodes)
+                for relations in self.relations
+            )
+        )
+        return pd.concat([nodes, ways, relations])
 
 
 #  header_bbox = box(

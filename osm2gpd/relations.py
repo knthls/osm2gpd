@@ -1,11 +1,13 @@
 import logging
 from functools import partial
-from itertools import accumulate
 from typing import Generator
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 from shapely import (
+    Geometry,
     GeometryCollection,
     LineString,
     MultiLineString,
@@ -15,8 +17,7 @@ from shapely import (
 )
 from shapely.ops import linemerge
 
-from .proto import PrimitiveGroup, Relation
-from .tags import get_tags
+from .unpacked import RelationGroup
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +64,15 @@ def consolidate_linestrings(parts: gpd.GeoSeries) -> Generator[LineString, None,
 
 
 def parse_multipolygon_relation(
-    relation: Relation, ways: gpd.GeoDataFrame, string_table: list[str]
+    members: NDArray[np.int64],
+    roles: NDArray[np.object_],
+    types: NDArray[np.object_],
+    ways: gpd.GeoDataFrame,
 ) -> Polygon | MultiPolygon:
-    ids: list[int] = list(accumulate(relation.memids))
-    roles = pd.Series(dict(zip(ids, [string_table[x] for x in relation.roles_sid])))
-
-    if all((type_ == 1 for type_ in relation.types)):
-        ids_ = ways.index.intersection(ids)
-        geoms = ways.loc[ids_, "geometry"]
-        roles = roles.loc[ids_]
+    if (types == "way").all():
+        loc = np.isin(members, ways.index)
+        roles = roles[loc]
+        geoms = ways.loc[members[loc], "geometry"]
 
         outer = list(consolidate_polygons(geoms[roles == "outer"]))
         inner = list(consolidate_polygons(geoms[roles == "inner"]))
@@ -83,7 +84,10 @@ def parse_multipolygon_relation(
 
 
 def parse_boundary_relation(
-    relation: Relation, ways: gpd.GeoDataFrame, string_table: list[str]
+    members: NDArray[np.int64],
+    roles: NDArray[np.object_],
+    types: NDArray[np.object_],
+    ways: gpd.GeoDataFrame,
 ) -> LineString | MultiLineString:
     """Boundaries are parsed as LineString, 'label', 'admin_centre' and
     'subarea' roles will be ignored.
@@ -91,79 +95,115 @@ def parse_boundary_relation(
     For more information, see
     https://wiki.openstreetmap.org/wiki/Relation:boundary#Relation_members
     """
-    ids: list[int] = list(accumulate(relation.memids))
-    roles = pd.Series(dict(zip(ids, [string_table[x] for x in relation.roles_sid])))
-
-    ids_ = ways.index.intersection(ids)
-
-    geoms = ways.loc[ids_, "geometry"]
-    roles = roles.loc[ids_]
-
-    return linemerge(consolidate_linestrings(geoms[roles.isin(("outer", "inner"))]))
+    idx = (
+        np.isin(members, ways.index)
+        & (types == "way")
+        & np.isin(roles, ("outer", "inner"))
+    )
+    return linemerge(consolidate_linestrings(ways.loc[members[idx], "geometry"]))
 
 
 def parse_generic_relation(
-    relation: Relation,
+    members: NDArray[np.int64],
+    types: NDArray[np.object_],
+    *,
     ways: gpd.GeoDataFrame,
     nodes: gpd.GeoDataFrame,
+    relations: gpd.GeoDataFrame | None = None,
 ) -> GeometryCollection:
-    ids: list[int] = list(accumulate(relation.memids))
-
     geoms = (
-        ways.loc[ways.index.intersection(ids), "geometry"].to_list()
-        + nodes.loc[nodes.index.intersection(ids), "geometry"].to_list()
+        ways.loc[ways.index.intersection(members[types == "way"]), "geometry"].to_list()
+        + nodes.loc[
+            nodes.index.intersection(members[types == "node"]), "geometry"
+        ].to_list()
     )
+
+    if relations is not None:
+        geoms += relations.loc[
+            relations.index.intersection(members[types == "relation"]), "geometry"
+        ].to_list()
 
     return GeometryCollection(geoms)
 
 
-def parse(
-    group: PrimitiveGroup,
-    string_table: list[str],
-    nodes: gpd.GeoDataFrame,
-    ways: gpd.GeoDataFrame,
-) -> gpd.GeoDataFrame:
-    tags = {}
-    relations = {}
-
-    for relation in group.relations:
-        rel_tags: dict[str, str] = get_tags(relation, string_table)
-
-        match rel_tags["type"]:
+def _consolidate_geometries(
+    group: RelationGroup, ways: gpd.GeoDataFrame, nodes: gpd.GeoDataFrame
+) -> Generator[tuple[int, Geometry | partial], None, None]:
+    for idx, (members, roles, types) in enumerate(
+        zip(group.member_ids, group.member_roles, group.member_types)
+    ):
+        match group.tags.get(idx, {"type": "generic"})["type"]:
             case "multipolygon":
-                geometry = parse_multipolygon_relation(relation, ways, string_table)
+                yield idx, parse_multipolygon_relation(members, roles, types, ways)
             case "boundary":
-                geometry = parse_boundary_relation(relation, ways, string_table)
+                yield idx, parse_boundary_relation(members, roles, types, ways)
             case _:
-                geometry = parse_generic_relation(relation, ways, nodes)
+                if (types == "relation").any():
+                    yield idx, partial(
+                        parse_generic_relation,
+                        members=members,
+                        types=types,
+                        ways=ways,
+                        nodes=nodes,
+                    )
+                    continue
 
-        if relation.info is not None:
-            parsed = {
-                "geometry": geometry,
-                "version": relation.info.version,
-                "changeset": relation.info.changeset,
-                "visible": relation.info.visible,
-            }
-        else:
-            parsed = {"geometry": geometry}
-
-        relations[relation.id] = parsed
-        tags[relation.id] = rel_tags
-
-    tags = pd.DataFrame.from_dict(
-        tags,
-        orient="index",
-        dtype=pd.SparseDtype(str),
-    )
-
-    return gpd.GeoDataFrame.from_dict(relations, orient="index", crs="EPSG:4326").join(
-        tags
-    )
+                yield idx, parse_generic_relation(
+                    members, types, ways=ways, nodes=nodes
+                )
 
 
-def resolve_buffer(
-    nodes: gpd.GeoDataFrame, ways: gpd.GeoDataFrame, relation_buffer: list[partial]
+def consolidate_relations(
+    group: RelationGroup, ways: gpd.GeoDataFrame, nodes: gpd.GeoDataFrame
 ) -> gpd.GeoDataFrame:
-    return pd.concat(
-        (relations(nodes=nodes, ways=ways) for relations in relation_buffer)
+    resolved_geometries: list[Geometry] = []
+    resolved_idx: list[int] = []
+    unresolved: list[tuple[int, Geometry]] = []
+
+    for idx, geometry in _consolidate_geometries(group, ways, nodes):
+        match geometry:
+            case Geometry():  # type: ignore[misc]
+                resolved_geometries.append(geometry)
+                resolved_idx.append(idx)
+            case partial():
+                unresolved.append((idx, geometry))
+
+    relations = gpd.GeoDataFrame(
+        {
+            "idx": resolved_idx,
+            "id": group.ids[resolved_idx],
+            "geometry": resolved_geometries,
+            "version": np.array(group.version)[resolved_idx],
+            "changeset": np.array(group.changeset)[resolved_idx],
+            "visible": np.array(group.visible)[resolved_idx],
+        },
+        crs="EPSG:4326",
     )
+
+    relations = pd.concat(
+        [
+            relations,
+            gpd.GeoDataFrame.from_dict(
+                {
+                    idx: {
+                        "geometry": func(relations=relations.set_index("id")),
+                        "version": group.version[idx],
+                        "changeset": group.version[idx],
+                        "visible": group.version[idx],
+                        "id": group.ids[idx],
+                    }
+                    for idx, func in unresolved
+                },
+                orient="index",
+                crs="EPSG:4326",
+            ),
+        ]
+    )
+
+    return relations.join(
+        pd.DataFrame.from_dict(
+            group.tags,
+            orient="index",
+            dtype=pd.SparseDtype(str),
+        )
+    ).set_index("id")

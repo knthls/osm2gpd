@@ -4,14 +4,16 @@ from osm2gpd.parse import OSMFile
 
 
 @pytest.mark.parametrize(
-    "filename",
-    ["isle_of_man", "malta"],
+    "filename,expected_shape",
+    [("isle_of_man", (102488, 1109)), ("malta", (142325, 959))],
 )
 def test_osm_file_can_be_consolidated(
-    filename: str, request: pytest.FixtureRequest
+    filename: str, expected_shape: tuple[int, int], request: pytest.FixtureRequest
 ) -> None:
-    _ = (
+    gdf = (
         OSMFile.from_file(request.getfixturevalue(filename))
         .filter(tags={"name"})
         .consolidate()
     )
+
+    assert gdf.shape == expected_shape
