@@ -1,18 +1,16 @@
-from functools import partial
-from itertools import accumulate
-from typing import Type
+from typing import Generator, Type
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
-from shapely import LinearRing, LineString, Polygon
+from numpy.typing import NDArray
+from shapely import Geometry, LinearRing, LineString, Polygon
 
-from .proto import PrimitiveGroup
-
-__all__ = ["resolve_buffer", "parse"]
+from .unpacked import WayGroup
 
 
 def infer_way_type(
-    refs: list[int], tags: dict[str, str]
+    refs: NDArray[np.int64], tags: dict[str, str]
 ) -> Type[LinearRing] | Type[Polygon] | Type[LineString]:
     """Rules are taken from here: https://wiki.openstreetmap.org/wiki/Way#Types_of_way"""
     # if way is closed
@@ -26,46 +24,34 @@ def infer_way_type(
         return LineString  # type: ignore[no-any-return]
 
 
-def parse(
-    group: PrimitiveGroup, string_table: list[str], nodes: gpd.GeoDataFrame
-) -> gpd.GeoDataFrame:
-    ways = {}
-    tags = {}
+def _get_geometries(
+    references: list[NDArray[np.int64]],
+    tags: dict[int, dict[str, str]],
+    nodes: gpd.GeoDataFrame,
+) -> Generator[Geometry, None, None]:
+    for i, refs in enumerate(references):
+        geom_type = infer_way_type(refs, tags.get(i, {}))
+        yield geom_type(nodes.loc[refs, "geometry"])
 
-    for way in group.ways:
-        refs = list(accumulate(way.refs))
-        way_tags = {
-            string_table[k]: string_table[v] for k, v in zip(way.keys, way.vals)
-        }
 
-        geom_type = infer_way_type(refs, way_tags)
-
-        if way.info is not None:
-            parsed = {
-                "geometry": geom_type(nodes.loc[refs, "geometry"]),
-                "version": way.info.version,
-                "changeset": way.info.changeset,
-                "visible": way.info.visible,
-            }
-        else:
-            parsed = {
-                "geometry": geom_type(nodes.loc[refs, "geometry"]),
-            }
-
-        ways[way.id] = parsed
-        tags[way.id] = way_tags
-
+def consolidate_ways(group: WayGroup, nodes: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     tags = pd.DataFrame.from_dict(
-        tags,
+        group.tags,
         orient="index",
         dtype=pd.SparseDtype(str),
     )
 
-    return gpd.GeoDataFrame.from_dict(ways, orient="index", crs="EPSG:4326").join(tags)
-
-
-def resolve_buffer(
-    nodes: gpd.GeoDataFrame, way_buffer: list[partial]
-) -> gpd.GeoDataFrame:
-    # resolve partial calls to _parse_ways with all nodes now known
-    return pd.concat((ways(nodes=nodes) for ways in way_buffer))
+    return (
+        gpd.GeoDataFrame(
+            {
+                "geometry": _get_geometries(group.member_ids, group.tags, nodes),
+                "version": group.version,
+                "changeset": group.changeset,
+                "visible": group.visible,
+                "id": group.ids,
+            },
+            crs="EPSG:4326",
+        )
+        .join(tags)
+        .set_index("id")
+    )

@@ -4,8 +4,6 @@ from .proto import Node, Relation, Way
 
 
 def get_tags(obj: Relation | Way | Node, string_table: list[str]) -> dict[str, str]:
-    if isinstance(obj, Node):
-        breakpoint()
     return {string_table[k]: string_table[v] for k, v in zip(obj.keys, obj.vals)}
 
 

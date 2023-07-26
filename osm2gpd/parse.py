@@ -5,12 +5,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Generator, Self, TypeAlias
 
+import geopandas as gpd
+import pandas as pd
 from shapely import Polygon
 
 from .blocks import read_blocks
 from .filter import filter_groups
+from .nodes import consolidate_nodes
 from .proto import HeaderBlock, PrimitiveBlock
 from .unpacked import BaseGroup, NodesGroup, RelationGroup, WayGroup
+from .ways import consolidate_ways
 
 __all__ = ["OSMFile"]
 
@@ -86,14 +90,18 @@ class OSMFile:
 
         return cls(nodes, ways, relations)
 
-    def filter(self, *, tags: set[str]) -> None:
+    def filter(self, *, tags: set[str]) -> Self:
         self.relations, references = filter_groups(self.relations, tags=tags)
         self.ways, references = filter_groups(
             self.ways, tags=tags, references=references
         )
-        self.nodes, references = filter_groups(
-            self.nodes, tags=tags, references=references
-        )
+        self.nodes, _ = filter_groups(self.nodes, tags=tags, references=references)
+        return self
+
+    def consolidate(self) -> gpd.GeoDataFrame:
+        nodes = pd.concat((consolidate_nodes(nodes) for nodes in self.nodes))
+        _ = pd.concat((consolidate_ways(ways, nodes=nodes) for ways in self.ways))
+        raise NotImplementedError()
 
 
 #  header_bbox = box(
