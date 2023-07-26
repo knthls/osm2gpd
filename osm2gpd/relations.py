@@ -68,19 +68,31 @@ def parse_multipolygon_relation(
     roles: NDArray[np.object_],
     types: NDArray[np.object_],
     ways: gpd.GeoDataFrame,
+    relations: gpd.GeoDataFrame | None = None,
 ) -> Polygon | MultiPolygon:
-    if (types == "way").all():
-        loc = np.isin(members, ways.index)
-        roles = roles[loc]
-        geoms = ways.loc[members[loc], "geometry"]
-
-        outer = list(consolidate_polygons(geoms[roles == "outer"]))
-        inner = list(consolidate_polygons(geoms[roles == "inner"]))
-
-        return unary_union(outer).difference(unary_union(inner))
+    if (types == "relation").any() and relations is None:
+        raise ConsolidationError(
+            "Can not consolidate multipolygon that depends on relations."
+        )
+    elif (types == "relation").any() and relations is not None:
+        outer_ = relations.loc[
+            members[(types == "relation") & (roles == "outer")], "geometry"
+        ].to_list()
+        inner_ = relations.loc[
+            members[(types == "relation") & (roles == "inner_")], "geometry"
+        ].to_list()
     else:
-        logger.warning("Unable to parse multipolygon - invalid member geometries")
-        raise NotImplementedError()
+        outer_ = []
+        inner_ = []
+
+    loc = np.isin(members, ways.index)
+    roles = roles[loc]
+    geoms = ways.loc[members[loc], "geometry"]
+
+    outer = list(consolidate_polygons(geoms[roles == "outer"]))
+    inner = list(consolidate_polygons(geoms[roles == "inner"]))
+
+    return unary_union(outer + outer_).difference(unary_union(inner + inner_))
 
 
 def parse_boundary_relation(
@@ -134,6 +146,16 @@ def _consolidate_geometries(
     ):
         match group.tags.get(idx, {"type": "generic"})["type"]:
             case "multipolygon":
+                if (types == "relation").any():
+                    yield idx, partial(
+                        parse_multipolygon_relation,
+                        members=members,
+                        roles=roles,
+                        types=types,
+                        ways=ways,
+                    )
+                    continue
+
                 yield idx, parse_multipolygon_relation(members, roles, types, ways)
             case "boundary":
                 yield idx, parse_boundary_relation(members, roles, types, ways)
