@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Self, TypeAlias
+from typing import Generator, TypeAlias
 
 import geopandas as gpd
 import pandas as pd
@@ -66,7 +66,7 @@ class OSMFile:
     relations: list[RelationGroup] = field(default_factory=list)
 
     @classmethod
-    def from_file(cls, fp: Path | str) -> Self:
+    def from_file(cls, fp: Path | str) -> OSMFile:
         if isinstance(fp, str):
             fp = Path(fp)
 
@@ -91,7 +91,7 @@ class OSMFile:
 
         return cls(nodes, ways, relations)
 
-    def filter(self, *, tags: set[str]) -> Self:
+    def filter(self, *, tags: set[str]) -> OSMFile:
         self.relations, references = filter_groups(self.relations, tags=tags)
         self.ways, references = filter_groups(
             self.ways, tags=tags, references=references

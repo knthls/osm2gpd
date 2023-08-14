@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from itertools import accumulate
-from typing import Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -20,7 +21,7 @@ class WayGroup(BaseGroup):
     @classmethod
     def from_primitive_group(
         cls, group: PrimitiveGroup, string_table: list[str]
-    ) -> Self:
+    ) -> WayGroup:
         ids: list[int] = []
         versions: list[int] = []
         member_ids: list[NDArray[np.int64]] = []

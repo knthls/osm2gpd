@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from itertools import accumulate
-from typing import Generator, Iterator, Self, Sequence
+from typing import Generator, Iterator, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,7 +28,7 @@ class NodesGroup(BaseGroup):
         granularity: float,
         lat_offset: float,
         lon_offset: float,
-    ) -> Self:
+    ) -> NodesGroup:
         return cls(
             ids=np.fromiter(accumulate(group.dense.id), dtype=np.int64),
             lat=np.fromiter(
