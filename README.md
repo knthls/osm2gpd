@@ -1,8 +1,8 @@
 # osm2gpd: OpenStreetMap to GeoPandas Parser
 
-[Tests](https://github.com/knthls/osm2gpd/actions/workflows/tests.yml/badge.svg)
-[Coverage](https://github.com/knthls/osm2gpd/actions/workflows/branch.yml/badge.svg)
-[TypeChecking](https://github.com/knthls/osm2gpd/actions/workflows/mypy.yml/badge.svg)
+![Tests](https://github.com/knthls/osm2gpd/actions/workflows/tests.yml/badge.svg)
+![Coverage](https://github.com/knthls/osm2gpd/actions/workflows/branch.yml/badge.svg)
+![TypeChecking](https://github.com/knthls/osm2gpd/actions/workflows/mypy.yml/badge.svg)
 
 ## Introduction
 
