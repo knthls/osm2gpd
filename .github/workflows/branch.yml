@@ -44,7 +44,7 @@ jobs:
           poetry-version: ${{ matrix.poetry-version }}
       - name: Install dependencies
         run: poetry install
-      - name: Run black
+      - name: Run mypy
         run: poetry run mypy osm2gpd
   code-quality:
     strategy:
