@@ -18,7 +18,7 @@ def consolidate_nodes(group: NodesGroup) -> gpd.GeoDataFrame:
     tags = pd.DataFrame.from_dict(
         group.tags,
         orient="index",
-        dtype=pd.SparseDtype(str),
+        dtype=str(pd.SparseDtype(str)),
     )
 
     return nodes.join(tags).set_index("id")

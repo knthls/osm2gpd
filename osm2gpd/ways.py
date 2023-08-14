@@ -38,7 +38,7 @@ def consolidate_ways(group: WayGroup, nodes: gpd.GeoDataFrame) -> gpd.GeoDataFra
     tags = pd.DataFrame.from_dict(
         group.tags,
         orient="index",
-        dtype=pd.SparseDtype(str),
+        dtype=str(pd.SparseDtype(str)),
     )
 
     return (

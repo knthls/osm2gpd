@@ -226,6 +226,6 @@ def consolidate_relations(
         pd.DataFrame.from_dict(
             group.tags,
             orient="index",
-            dtype=pd.SparseDtype(str),
+            dtype=str(pd.SparseDtype(str)),
         )
     ).set_index("id")
