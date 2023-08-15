@@ -1,3 +1,9 @@
+## 0.2.3 (2023-08-15)
+
+### Fix
+
+- run code quality checks only once, but type checking for different versions
+
 ## 0.2.2 (2023-08-15)
 
 ### Fix
