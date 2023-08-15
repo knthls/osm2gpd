@@ -1,12 +1,9 @@
 name: Publish to PyPI
 
 on:
-  workflow_run:
-    workflows:
-      - Bump version
-    branches: [main]
+  release:
     types:
-      - completed
+      - published
 
 jobs:
   build-n-publish:
