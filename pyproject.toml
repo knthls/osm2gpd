@@ -32,6 +32,14 @@ black = "^23.7.0"
 bandit = "^1.7.5"
 pandas-stubs = "^2.0.3.230814"
 
+[tool.commitizen]
+version = "0.1.0"
+tag_format = "$version"
+version_files = [
+    "osm2gpd/__version__.py",
+    "pyproject.toml:^version"
+]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
