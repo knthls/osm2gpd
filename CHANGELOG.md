@@ -1,3 +1,9 @@
+## 0.2.2 (2023-08-15)
+
+### Fix
+
+- configure publish on created release
+
 ## 0.2.1 (2023-08-15)
 
 ### Fix
