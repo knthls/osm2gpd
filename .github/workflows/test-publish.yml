@@ -16,13 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: abatilo/actions-poetry@v2.1.4
+      - name: Build and publish to pypi
+        uses: JRubics/poetry-publish@v1.17
         with:
-          poetry-version: '1.5.1'
-      - name: build
-        run: poetry build
-      - name: publish
-        run: poetry publish --repository=testpypi
-        env:
-          POETRY_HTTP_BASIC_MY_REPOSITORY_PASSWORD: ${{secrets.PYPI_TOKEN}}
-          POETRY_REPOSITORIES_TESTPYPI: https://test.pypi.org/legacy/
+          pypi_token: ${{ secrets.PYPI_TOKEN }}
+          repository_name: "testpypi"
+          repository_url: "https://test.pypi.org/legacy/"
