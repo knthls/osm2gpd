@@ -2,7 +2,6 @@
 
 ![Test](https://github.com/knthls/osm2gpd/actions/workflows/test.yml/badge.svg)
 [![codecov](https://codecov.io/gh/knthls/osm2gpd/branch/main/graph/badge.svg?token=OSNRL1NSNH)](https://codecov.io/gh/knthls/osm2gpd)
-![MyPy](https://github.com/knthls/osm2gpd/actions/workflows/mypy.yml/badge.svg)
 
 ## Introduction
 
