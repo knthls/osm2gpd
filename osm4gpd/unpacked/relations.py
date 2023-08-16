@@ -6,8 +6,8 @@ from itertools import accumulate
 import numpy as np
 from numpy.typing import NDArray
 
-from osm2gpd.proto import PrimitiveGroup
-from osm2gpd.tags import get_tags
+from osm4gpd.proto import PrimitiveGroup
+from osm4gpd.tags import get_tags
 
 from .base import BaseGroup
 

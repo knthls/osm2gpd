@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from osm2gpd import OSMFile
-from osm2gpd.references import find_references
+from osm4gpd import OSMFile
+from osm4gpd.references import find_references
 
 
 @pytest.mark.parametrize(

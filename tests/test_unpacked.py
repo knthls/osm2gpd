@@ -3,9 +3,9 @@ from typing import Generator
 
 import pytest
 
-from osm2gpd.blocks import read_blocks
-from osm2gpd.proto import PrimitiveBlock, PrimitiveGroup
-from osm2gpd.unpacked import NodesGroup, RelationGroup, WayGroup
+from osm4gpd.blocks import read_blocks
+from osm4gpd.proto import PrimitiveBlock, PrimitiveGroup
+from osm4gpd.unpacked import NodesGroup, RelationGroup, WayGroup
 
 
 def _iter_blocks(fp: Path) -> Generator[PrimitiveBlock, None, None]:

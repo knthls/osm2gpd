@@ -1,6 +1,6 @@
 import pytest
 
-from osm2gpd.parse import OSMFile
+from osm4gpd.parse import OSMFile
 
 
 @pytest.mark.parametrize(

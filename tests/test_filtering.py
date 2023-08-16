@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 from numpy.typing import NDArray
 
-from osm2gpd import OSMFile
-from osm2gpd.filter import filter_groups
+from osm4gpd import OSMFile
+from osm4gpd.filter import filter_groups
 
 
 @pytest.mark.parametrize(

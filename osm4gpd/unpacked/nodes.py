@@ -7,7 +7,7 @@ from typing import Generator, Iterator, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from osm2gpd.proto import PrimitiveGroup
+from osm4gpd.proto import PrimitiveGroup
 
 from .base import BaseGroup
 

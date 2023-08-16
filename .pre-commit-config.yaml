@@ -47,7 +47,7 @@ repos:
       - types-protobuf
     args:
       - --ignore-missing-imports
-      - osm2gpd
+      - osm4gpd
       - tests
     pass_filenames: false
     verbose: true
