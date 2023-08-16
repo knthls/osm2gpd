@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "osm4gpd"
-version = "0.1.0"
+version = "0.2.0a0"
 description = "A parser that loads openstreetmaps native protobuf format into a sparse geopandas dataframe."
 authors = ["Christian <christian.knauth@citywalx.net>"]
 readme = "README.md"
@@ -33,7 +33,7 @@ bandit = "^1.7.5"
 pandas-stubs = "^2.0.3.230814"
 
 [tool.commitizen]
-version = "0.1.0"
+version = "0.2.0a0"
 tag_format = "$version"
 version_files = [
     "osm4gpd/__version__.py",
