@@ -16,3 +16,8 @@ def isle_of_man(shared_datadir: Path) -> Path:
 @pytest.fixture
 def malta(shared_datadir: Path) -> Path:
     return shared_datadir.joinpath("malta-latest.osm.pbf")
+
+
+@pytest.fixture
+def extract(shared_datadir: Path) -> Path:
+    return shared_datadir.joinpath("extract.osm.pbf")

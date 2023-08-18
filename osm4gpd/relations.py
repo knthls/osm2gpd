@@ -202,25 +202,26 @@ def consolidate_relations(
         crs="EPSG:4326",
     )
 
-    relations = pd.concat(
-        [
-            relations,
-            gpd.GeoDataFrame.from_dict(
-                {
-                    idx: {
-                        "geometry": func(relations=relations.set_index("id")),
-                        "version": group.version[idx],
-                        "changeset": group.version[idx],
-                        "visible": group.version[idx],
-                        "id": group.ids[idx],
-                    }
-                    for idx, func in unresolved
-                },
-                orient="index",
-                crs="EPSG:4326",
-            ),
-        ]
-    )
+    if len(unresolved) > 0:
+        relations = pd.concat(
+            [
+                relations,
+                gpd.GeoDataFrame.from_dict(
+                    {
+                        idx: {
+                            "geometry": func(relations=relations.set_index("id")),
+                            "version": group.version[idx],
+                            "changeset": group.version[idx],
+                            "visible": group.version[idx],
+                            "id": group.ids[idx],
+                        }
+                        for idx, func in unresolved
+                    },
+                    orient="index",
+                    crs="EPSG:4326",
+                ),
+            ]
+        )
 
     return relations.join(
         pd.DataFrame.from_dict(

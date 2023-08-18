@@ -6,6 +6,7 @@ from osm4gpd.parse import OSMFile
 @pytest.mark.parametrize(
     "filename,tags,expected_shape",
     [
+        ("extract", {"amenity"}, (1184, 157)),
         ("isle_of_man", {"name"}, (102488, 1109)),
         ("malta", {"amenity"}, (19247, 354)),
         ("malta", {"car_wash"}, (10, 8)),
