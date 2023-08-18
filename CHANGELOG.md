@@ -1,3 +1,9 @@
+## 0.2.0a2 (2023-08-18)
+
+### Fix
+
+- make consolidation after filtering behave as intended
+
 ## 0.2.0a1 (2023-08-18)
 
 ### Fix
