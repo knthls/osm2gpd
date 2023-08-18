@@ -65,6 +65,11 @@ class OSMFile:
     ways: list[WayGroup] = field(default_factory=list)
     relations: list[RelationGroup] = field(default_factory=list)
 
+    # protected property that is used to store the arguments to filter
+    # for later use during consolidation, since pre-consolidation filtering
+    # can leave non-matching geometries that are referenced by some way or relation
+    _filter: set[str] | None = None
+
     @classmethod
     def from_file(cls, fp: Path | str) -> OSMFile:
         if isinstance(fp, str):
@@ -97,17 +102,20 @@ class OSMFile:
             self.ways, tags=tags, references=references
         )
         self.nodes, _ = filter_groups(self.nodes, tags=tags, references=references)
+
+        self._filter = tags
         return self
 
-    def consolidate(self) -> gpd.GeoDataFrame:
+    def _consolidate_nodes(self) -> gpd.GeoDataFrame:
         _node_parts = [
             consolidate_nodes(nodes) for nodes in self.nodes if not nodes.is_empty()
         ]
         if len(_node_parts) > 0:
-            nodes = pd.concat(_node_parts)
+            return pd.concat(_node_parts)
         else:
             raise ValueError("Nothing to consolidate.")
 
+    def _consolidate_ways(self, *, nodes: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         _way_parts = [
             consolidate_ways(ways, nodes=nodes)
             for ways in self.ways
@@ -115,10 +123,13 @@ class OSMFile:
         ]
 
         if len(_way_parts) > 0:
-            ways = pd.concat(_way_parts)
+            return pd.concat(_way_parts)
         else:
-            ways = gpd.GeoDataFrame()
+            return gpd.GeoDataFrame()
 
+    def _consolidate_relations(
+        self, *, nodes: gpd.GeoDataFrame, ways: gpd.GeoDataFrame
+    ) -> gpd.GeoDataFrame:
         _relation_parts = [
             consolidate_relations(relations, ways=ways, nodes=nodes)
             for relations in self.relations
@@ -126,10 +137,25 @@ class OSMFile:
         ]
 
         if len(_relation_parts) > 0:
-            relations = pd.concat(_relation_parts)
-            return pd.concat([nodes, ways, relations])
+            return pd.concat(_relation_parts)
         else:
-            return pd.concat([nodes, ways])
+            return gpd.GeoDataFrame()
+
+    def consolidate(self) -> gpd.GeoDataFrame:
+        nodes = self._consolidate_nodes()
+        ways = self._consolidate_ways(nodes=nodes)
+        relations = self._consolidate_relations(nodes=nodes, ways=ways)
+
+        gdf = pd.concat([nodes, ways, relations])
+
+        if self._filter is not None:
+            # filter for rows that match a filter category
+            gdf = gdf[gdf[list(self._filter)].notna().any(axis=1)]
+
+            # drop columns that became all NA from filtering
+            gdf = gdf[gdf.columns[~gdf.isna().all()]]
+
+        return gdf
 
 
 #  header_bbox = box(
