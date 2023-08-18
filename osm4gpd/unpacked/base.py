@@ -13,3 +13,6 @@ class BaseGroup:
     version: list[int]
     visible: list[bool]
     changeset: list[int]
+
+    def is_empty(self) -> bool:
+        return len(self.ids) == 0

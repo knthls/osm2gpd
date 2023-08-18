@@ -101,7 +101,7 @@ class OSMFile:
 
     def consolidate(self) -> gpd.GeoDataFrame:
         _node_parts = [
-            consolidate_nodes(nodes) for nodes in self.nodes if len(nodes.ids) > 0
+            consolidate_nodes(nodes) for nodes in self.nodes if not nodes.is_empty()
         ]
         if len(_node_parts) > 0:
             nodes = pd.concat(_node_parts)
@@ -111,7 +111,7 @@ class OSMFile:
         _way_parts = [
             consolidate_ways(ways, nodes=nodes)
             for ways in self.ways
-            if len(ways.ids) > 0
+            if not ways.is_empty()
         ]
 
         if len(_way_parts) > 0:
@@ -122,7 +122,7 @@ class OSMFile:
         _relation_parts = [
             consolidate_relations(relations, ways=ways, nodes=nodes)
             for relations in self.relations
-            if len(relations.ids) > 0
+            if not relations.is_empty()
         ]
 
         if len(_relation_parts) > 0:
