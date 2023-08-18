@@ -1,3 +1,9 @@
+## 0.2.0a1 (2023-08-18)
+
+### Fix
+
+- add condition to prevent operating on emty dataframe in consolidation
+
 ## 0.2.0a0 (2023-08-16)
 
 ### Feat
